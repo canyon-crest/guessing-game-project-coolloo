@@ -75,9 +75,9 @@ function makeGuess(){
     const percentage = (difference / range) * 100;
     
     let temperature;
-    if(percentage <= 5) {
-        temperature = "HOT! 🔥";
-    } else if(percentage <= 15) {
+    if(percentage <= 10) {
+        temperature = "HOT";
+    } else if(percentage <= 20) {
         temperature = "Warm";
     } else {
         temperature = "Cold";
