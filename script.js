@@ -5,8 +5,15 @@ date.textContent = time();
 let score, answer, level;
 const levelArr = document.getElementsByName("level");
 const scoreArr = [];
+const timeArr = [];
+let fastestTime = Infinity;
+let stopwatchInterval;
+let currentGameStartTime;
 
-// event listener
+if (stopwatch) stopwatch.textContent = "Time: 0:00.00";
+if (fastTime) fastTime.textContent = "Fastest Time: --";
+if (avgTime) avgTime.textContent = "Average Time: --";
+
 playBtn.addEventListener("click", play);
 guessBtn.addEventListener("click", makeGuess);
 giveUpBtn.addEventListener("click", giveUp);
@@ -16,7 +23,6 @@ submitBtn.addEventListener("click", function() {
         playerName.textContent = "Player: " + name.charAt(0).toUpperCase() + name.slice(1);
     }
 });
-
 function nameSubmit(nameInput){
     if(nameInput == "" || !nameInput){
         msg.textContent = "Invalid name, try again.";
@@ -29,16 +35,66 @@ function nameSubmit(nameInput){
 }
 function time(){
     let d = new Date();
-    // concatenate date
-    let str = d.getMonth()+1 + "/" + d.getDate() + "/" + d.getFullYear();
-    // update here
-    return str;
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const day = d.getDate();
+
+    let suffix = "th";
+    if (day % 10 === 1 && day !== 11) suffix = "st";
+    if (day % 10 === 2 && day !== 12) suffix = "nd";
+    if (day % 10 === 3 && day !== 13) suffix = "rd";
+    
+    return `${months[d.getMonth()]} ${day}${suffix}, ${d.getFullYear()}`;
+}
+function updateStopwatch() {
+    const now = new Date().getTime();
+    const elapsed = now - currentGameStartTime;
+    const minutes = Math.floor(elapsed / 60000);
+    const seconds = Math.floor((elapsed % 60000) / 1000);
+    const milliseconds = Math.floor((elapsed % 1000) / 10);
+    stopwatch.textContent = `Time: ${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}`;
+}
+function getRating(score, level) {
+    const percentage = (score / level) * 100;
+    
+    if(score === 1) {
+        return "PERFECT!";
+    } else if(percentage <= 15) {
+        return "GREAT!";
+    } else if(percentage <= 30) {
+        return "Good!";
+    } else if(percentage <= 50) {
+        return "Bad!";
+    } else {
+        return "Terrible!";
+    }
+}
+function updateTemperature(userGuess) {
+    const difference = Math.abs(userGuess - answer);
+    const range = level;
+    const percentage = (difference / range) * 100;
+
+    const marker = document.getElementById('tempMarker');
+    marker.style.left = (100 - percentage) + '%';
+
+    const guessItem = document.createElement('span');
+    guessItem.className = 'guess-item';
+    guessItem.style.background = percentage <= 10 ? '#ff6b6b' : 
+                                percentage <= 20 ? '#ffd93d' : '#4dabf7';
+    guessItem.textContent = userGuess;
+    document.getElementById('guessHistory').appendChild(guessItem);
 }
 function play(){
     playBtn.disabled = true;
     guessBtn.disabled = false;
     giveUpBtn.disabled = false;
     guess.disabled = false;
+
+    document.getElementById('guessHistory').innerHTML = '';
+
+    currentGameStartTime = new Date().getTime();
+    if (stopwatchInterval) clearInterval(stopwatchInterval);
+    stopwatch.textContent = "Time: 0:00.00";
+    stopwatchInterval = setInterval(updateStopwatch, 10);
     for(let i=0; i<levelArr.length; i++){
         levelArr[i].disabled = true;
         if(levelArr[i].checked){
@@ -47,7 +103,7 @@ function play(){
     }
     answer = Math.floor(Math.random()*level)+1;
     msg.textContent = "Guess a number between 1-" + level;
-    guess.placeholder = answer;
+    guess.placeholder = "Enter your guess";
     score = 0;
 }
 function makeGuess(){
@@ -60,15 +116,36 @@ function makeGuess(){
     
     if(userGuess === answer){
         const playerNameText = nameInput.value.charAt(0).toUpperCase() + nameInput.value.slice(1);
-        if(score == 1) {
-            msg.textContent = "Correct! It took " + playerNameText + " " + score + " try.";
-        } else {
-            msg.textContent = "Correct! It took " + playerNameText + " " + score + " tries.";
+        let tries = score === 1 ? "try" : "tries";
+        let rating = getRating(score, level);
+
+        const endTime = new Date().getTime();
+        const gameTime = (endTime - currentGameStartTime) / 1000;
+        timeArr.push(gameTime);
+
+        if (gameTime < fastestTime) {
+            fastestTime = gameTime;
+            const minutes = Math.floor(fastestTime / 60);
+            const seconds = (fastestTime % 60).toFixed(2);
+            fastTime.textContent = `Fastest Time: ${minutes}:${seconds.padStart(5, '0')}`;
         }
+
+        const avgGameTime = timeArr.reduce((a, b) => a + b) / timeArr.length;
+        const avgMinutes = Math.floor(avgGameTime / 60);
+        const avgSeconds = (avgGameTime % 60).toFixed(2);
+        avgTime.textContent = `Average Time: ${avgMinutes}:${avgSeconds.padStart(5, '0')}`;
+        
+        msg.textContent = `Correct! It took ${playerNameText} ${score} ${tries}. ${rating} (Time: ${gameTime.toFixed(2)}s)`;
+
+        clearInterval(stopwatchInterval);
+        
         updateScore();
         reset();
         return;
     }
+    
+    // Update temperature visualization
+    updateTemperature(userGuess);
     
     const difference = Math.abs(userGuess - answer);
     const range = level;
@@ -76,11 +153,11 @@ function makeGuess(){
     
     let temperature;
     if(percentage <= 10) {
-        temperature = "HOT";
+        temperature = "HOT 🔥";
     } else if(percentage <= 20) {
-        temperature = "Warm";
+        temperature = "Warm 😊";
     } else {
-        temperature = "Cold";
+        temperature = "Cold ❄️";
     }
     
     if(userGuess < answer){
@@ -96,6 +173,7 @@ function reset(){
     guess.placeholder = "";
     guess.disabled = true;
     playBtn.disabled = false;
+    stopwatch.textContent = "Time: 0:00.00";
     for(let i=0; i<levelArr.length; i++){
         levelArr[i].disabled = false;
     }
@@ -131,7 +209,10 @@ function giveUp(){
     msg.textContent = playerNameText + " gave up. The answer was " + answer + ".";
     score = level;
     scoreArr.push(score);
+
+    clearInterval(stopwatchInterval);
+    stopwatch.textContent = "Time: 0:00.00";
+    
     updateGiveUpScore();
     reset();
-    giveUpBtn.disabled = true;
 }
